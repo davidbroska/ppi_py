@@ -46,6 +46,7 @@ def test_ppi_mean_multid():
 
             included = (ci[0] <= 0) & (ci[1] >= 0)
             includeds[j] += included.astype(int)
+    print(includeds / trials)
     failed = np.any(includeds / trials < 1 - alphas - epsilon)
     assert not failed
 
@@ -56,21 +57,21 @@ def test_ppi_mean_elem():
     Yhat = np.random.normal(-2, 1, 10000)
     Yhat_unlabeled = np.random.normal(-2, 1, 10000)
 
-    ppi_mean_pointestimate(Y, Yhat, Yhat_unlabeled, lambd_optim_mode="element")
+    ppi_mean_pointestimate(Y, Yhat, Yhat_unlabeled, lam_optim_mode="element")
     ppi_mean_ci(
-        Y, Yhat, Yhat_unlabeled, alpha=alpha, lambd_optim_mode="element"
+        Y, Yhat, Yhat_unlabeled, alpha=alpha, lam_optim_mode="element"
     )
-    ppi_mean_pval(Y, Yhat, Yhat_unlabeled, lambd_optim_mode="element")
+    ppi_mean_pval(Y, Yhat, Yhat_unlabeled, lam_optim_mode="element")
 
     Y = np.random.normal(0, 1, (10000, 5))
     Yhat = np.random.normal(-2, 1, (10000, 5))
     Yhat_unlabeled = np.random.normal(-2, 1, (10000, 5))
 
-    ppi_mean_pointestimate(Y, Yhat, Yhat_unlabeled, lambd_optim_mode="element")
+    ppi_mean_pointestimate(Y, Yhat, Yhat_unlabeled, lam_optim_mode="element")
     ppi_mean_ci(
-        Y, Yhat, Yhat_unlabeled, alpha=alpha, lambd_optim_mode="element"
+        Y, Yhat, Yhat_unlabeled, alpha=alpha, lam_optim_mode="element"
     )
-    ppi_mean_pval(Y, Yhat, Yhat_unlabeled, lambd_optim_mode="element")
+    ppi_mean_pval(Y, Yhat, Yhat_unlabeled, lam_optim_mode="element")
 
 
 def test_ppi_mean_pval():

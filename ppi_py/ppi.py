@@ -8,12 +8,14 @@ from statsmodels.stats.weightstats import (
     _zstat_generic,
     _zstat_generic2,
 )
+import statsmodels.stats.sandwich_covariance as sw
 from sklearn.linear_model import LogisticRegression, PoissonRegressor
 import warnings
 
 warnings.simplefilter("ignore")
 from .utils import (
     construct_weight_vector,
+    construct_group_vector,
     safe_expit,
     safe_log1pexp,
     compute_cdf,
@@ -71,6 +73,8 @@ def ppi_mean_pointestimate(
     coord=None,
     w=None,
     w_unlabeled=None,
+    group=None,
+    group_unlabeled=None,
     lam_optim_mode="overall",
 ):
     """Computes the prediction-powered point estimate of the d-dimensional mean.
@@ -99,6 +103,8 @@ def ppi_mean_pointestimate(
 
     w = construct_weight_vector(n, w, vectorized=True)
     w_unlabeled = construct_weight_vector(N, w_unlabeled, vectorized=True)
+    group = construct_group_vector(n, 0, group)
+    group_unlabeled = construct_group_vector(N, n, group_unlabeled)
 
     if lam is None:
         ppi_pointest = (w_unlabeled * Yhat_unlabeled).mean(0) + (
@@ -113,6 +119,8 @@ def ppi_mean_pointestimate(
             grads_hat,
             grads_hat_unlabeled,
             inv_hessian,
+            group,
+            group_unlabeled,
             coord=None,
             clip=True,
             optim_mode=lam_optim_mode,
@@ -125,6 +133,8 @@ def ppi_mean_pointestimate(
             coord=coord,
             w=w,
             w_unlabeled=w_unlabeled,
+            group=group,
+            group_unlabeled=group_unlabeled,
         )
     else:
         return (w_unlabeled * lam * Yhat_unlabeled).mean(axis=0) + (
@@ -142,6 +152,8 @@ def ppi_mean_ci(
     coord=None,
     w=None,
     w_unlabeled=None,
+    group=None,
+    group_unlabeled=None,
     lam_optim_mode="overall",
 ):
     """Computes the prediction-powered confidence interval for a d-dimensional mean.
@@ -174,6 +186,9 @@ def ppi_mean_ci(
     w = construct_weight_vector(n, w, vectorized=True)
     w_unlabeled = construct_weight_vector(N, w_unlabeled, vectorized=True)
 
+    group = construct_group_vector(n, 0, group)
+    group_unlabeled = construct_group_vector(N, n, group_unlabeled)
+
     if lam is None:
         ppi_pointest = ppi_mean_pointestimate(
             Y,
@@ -192,6 +207,8 @@ def ppi_mean_ci(
             grads_hat,
             grads_hat_unlabeled,
             inv_hessian,
+            group,
+            group_unlabeled,
             coord=None,
             clip=True,
             optim_mode=lam_optim_mode,
@@ -238,6 +255,8 @@ def ppi_mean_pval(
     coord=None,
     w=None,
     w_unlabeled=None,
+    group=None,
+    group_unlabeled=None,
     lam_optim_mode="overall",
 ):
     """Computes the prediction-powered p-value for a 1D mean.
@@ -265,6 +284,9 @@ def ppi_mean_pval(
     w = construct_weight_vector(n, w, vectorized=True)
     w_unlabeled = construct_weight_vector(N, w_unlabeled, vectorized=True)
 
+    group = construct_group_vector(n, 0, group)
+    group_unlabeled = construct_group_vector(N, n, group_unlabeled)
+
     Y = reshape_to_2d(Y)
     Yhat = reshape_to_2d(Yhat)
     Yhat_unlabeled = reshape_to_2d(Yhat_unlabeled)
@@ -283,6 +305,8 @@ def ppi_mean_pval(
             grads_hat,
             grads_hat_unlabeled,
             inv_hessian,
+            group,
+            group_unlabeled,
             coord=None,
             optim_mode=lam_optim_mode,
         )
@@ -1756,6 +1780,8 @@ def _calc_lam_glm(
     grads_hat,
     grads_hat_unlabeled,
     inv_hessian,
+    group,
+    group_unlabeled,
     coord=None,
     clip=False,
     optim_mode="overall",
@@ -1769,6 +1795,8 @@ def _calc_lam_glm(
         grads_hat_unlabeled (ndarray): Gradient of the loss function with respect to the parameter evaluated using predictions on the unlabeled data.
         inv_hessian (ndarray): Inverse of the Hessian of the loss function with respect to the parameter.
         coord (int, optional): Coordinate for which to optimize `lam`, when `optim_mode="overall"`.
+        group: #TODO
+        group_unlabeled: #TODO
         If `None`, it optimizes the total variance over all coordinates. Must be in {1, ..., d} where d is the shape of the estimand.
         clip (bool, optional): Whether to clip the value of lam to be non-negative. Defaults to `False`.
         optim_mode (ndarray, optional): Mode for which to optimize `lam`, either `overall` or `element`.
@@ -1791,15 +1819,16 @@ def _calc_lam_glm(
         )
 
     grads_cent = grads - grads.mean(axis=0)
-    grad_hat_cent = grads_hat - grads_hat.mean(axis=0)
-    cov_grads = (1 / n) * (
-        grads_cent.T @ grad_hat_cent + grad_hat_cent.T @ grads_cent
-    )
+    grads_hat_cent = grads_hat - grads_hat.mean(axis=0)
+    grad_stack = np.column_stack([grads_cent, grads_hat_cent])
+    grads_hat_unlabeled_cent = grads_hat_unlabeled - grads_hat_unlabeled.mean(axis=0)
+    cov_grads = 2 * (sw.S_crosssection(grad_stack, group) / n**2)[0:d, d:]
 
-    var_grads_hat = np.cov(
-        np.concatenate([grads_hat, grads_hat_unlabeled], axis=0).T
-    )
-    var_grads_hat = var_grads_hat.reshape(d, d)
+    var_grads_hat = sw.S_crosssection(
+        np.concatenate([grads_hat_cent, grads_hat_unlabeled_cent], axis=0), 
+        np.concatenate([group, group_unlabeled], axis=0)
+    ) / (n + N)**2
+
 
     vhat = inv_hessian if coord is None else inv_hessian[coord, :]
     if optim_mode == "overall":

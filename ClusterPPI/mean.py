@@ -2,7 +2,6 @@ import numpy as np
 from statistics import NormalDist
 import statsmodels.stats.sandwich_covariance as sw
 
-print(sw.S_crosssection)
 
 theta = 0
 cluster_size = 5 

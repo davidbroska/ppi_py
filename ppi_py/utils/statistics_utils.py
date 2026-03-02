@@ -53,6 +53,11 @@ def construct_weight_vector(n_obs, existing_weight, vectorized=False):
         res = res[:, None]
     return res
 
+def construct_group_vector(n_obs, offset, existing_group):
+    if existing_group is None:
+        return np.arange(offset, offset+n_obs)
+    else:
+        return existing_group
 
 def reshape_to_2d(x):
     """Reshapes a 1D array to a 2D array."""
