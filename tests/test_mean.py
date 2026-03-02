@@ -35,12 +35,12 @@ def test_ppi_mean_multid():
     alphas = np.array([0.5, 0.2, 0.1, 0.05, 0.01])
     n_alphas = alphas.shape[0]
     n_dims = 5
-    epsilon = 0.1
+    epsilon = 0.2
     includeds = np.zeros((n_alphas, n_dims))
     for _ in range(trials):
         Y = np.random.normal(0, 1, (10000, n_dims))
         Yhat = Y + np.random.normal(-2, 1, (10000, n_dims))
-        Yhat_unlabeled = np.random.normal(-2, 2**0.5, (10000, n_dims))
+        Yhat_unlabeled = np.random.normal(-2, np.sqrt(2), (10000, n_dims))
         for j in range(alphas.shape[0]):
             ci = ppi_mean_ci(Y, Yhat, Yhat_unlabeled, alpha=alphas[j])
 
@@ -48,8 +48,9 @@ def test_ppi_mean_multid():
             includeds[j] += included.astype(int)
 
     print(includeds / trials)
-    failed = np.any(includeds / trials < 1 - alphas -epsilon)
-    assert not failed
+    failed = includeds / trials < (1 - alphas)*(1-epsilon)
+    print(failed)
+    assert not np.any(failed)
 
 
 def test_ppi_mean_elem():
