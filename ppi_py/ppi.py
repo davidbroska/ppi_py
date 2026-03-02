@@ -15,7 +15,6 @@ import warnings
 warnings.simplefilter("ignore")
 from .utils import (
     construct_weight_vector,
-    construct_group_vector,
     safe_expit,
     safe_log1pexp,
     compute_cdf,
@@ -26,6 +25,7 @@ from .utils import (
     form_discrete_distribution,
     reshape_to_2d,
     bootstrap,
+    cov_cluster,
 )
 
 
@@ -103,8 +103,7 @@ def ppi_mean_pointestimate(
 
     w = construct_weight_vector(n, w, vectorized=True)
     w_unlabeled = construct_weight_vector(N, w_unlabeled, vectorized=True)
-    group = construct_group_vector(n, 0, group)
-    group_unlabeled = construct_group_vector(N, n, group_unlabeled)
+
 
     if lam is None:
         ppi_pointest = (w_unlabeled * Yhat_unlabeled).mean(0) + (
@@ -185,9 +184,6 @@ def ppi_mean_ci(
 
     w = construct_weight_vector(n, w, vectorized=True)
     w_unlabeled = construct_weight_vector(N, w_unlabeled, vectorized=True)
-
-    group = construct_group_vector(n, 0, group)
-    group_unlabeled = construct_group_vector(N, n, group_unlabeled)
 
     if lam is None:
         ppi_pointest = ppi_mean_pointestimate(
@@ -271,6 +267,8 @@ def ppi_mean_pval(
         coord (int, optional): Coordinate for which to optimize `lam`. If `None`, it optimizes the total variance over all coordinates. Must be in {1, ..., d} where d is the shape of the estimand.
         w (ndarray, optional): Sample weights for the labeled data set.
         w_unlabeled (ndarray, optional): Sample weights for the unlabeled data set.
+        group: #TODO
+        group_unlabeled: #TODO
 
     Returns:
         float or ndarray: Prediction-powered p-value for the mean.
@@ -283,9 +281,6 @@ def ppi_mean_pval(
     # w = np.ones(n) if w is None else w / w.sum() * n
     w = construct_weight_vector(n, w, vectorized=True)
     w_unlabeled = construct_weight_vector(N, w_unlabeled, vectorized=True)
-
-    group = construct_group_vector(n, 0, group)
-    group_unlabeled = construct_group_vector(N, n, group_unlabeled)
 
     Y = reshape_to_2d(Y)
     Yhat = reshape_to_2d(Yhat)
@@ -1822,12 +1817,11 @@ def _calc_lam_glm(
     grads_hat_cent = grads_hat - grads_hat.mean(axis=0)
     grad_stack = np.column_stack([grads_cent, grads_hat_cent])
     grads_hat_unlabeled_cent = grads_hat_unlabeled - grads_hat_unlabeled.mean(axis=0)
-    cov_grads = 2 * (sw.S_crosssection(grad_stack, group) / n**2)[0:d, d:]
+    var_grads_stack = (cov_cluster(grad_stack, group) / n**2)
+    cov_grads = var_grads_stack[:d, d:]
 
-    var_grads_hat = sw.S_crosssection(
-        np.concatenate([grads_hat_cent, grads_hat_unlabeled_cent], axis=0), 
-        np.concatenate([group, group_unlabeled], axis=0)
-    ) / (n + N)**2
+    var_grads_unlabeled = cov_cluster(grads_hat_unlabeled_cent, group_unlabeled) / N**2
+    var_grads_hat = (n**2/(n+N**2)) * var_grads_stack[d:, d:] + N**2/(n+N**2) * var_grads_unlabeled
 
 
     vhat = inv_hessian if coord is None else inv_hessian[coord, :]

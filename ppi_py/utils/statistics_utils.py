@@ -2,6 +2,7 @@ import numpy as np
 from numba import njit
 from scipy.stats import binom
 from scipy.optimize import brentq
+from statsmodels.tools.grouputils import group_sums
 
 
 def bootstrap(data, statistic, n_resamples, paired="all", statistic_kwargs={}):
@@ -157,3 +158,11 @@ def linfty_binom(N, K, alpha, qhat):
         bci = binomial_iid(N, alpha / K, qhat[k])
         epsilon = np.maximum(epsilon, np.abs(bci - qhat[k]).max())
     return epsilon
+
+def cov_cluster(x, group):
+    if group is None:
+        return np.dot(x.T, x)
+    else:
+        x_group_sum = group_sums(x, group)
+    return np.dot(x_group_sum.T, x_group_sum)
+    
