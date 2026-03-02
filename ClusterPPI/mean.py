@@ -1,22 +1,19 @@
 import numpy as np
 from statistics import NormalDist
+import statsmodels.stats.sandwich_covariance as sw
+
+print(sw.S_crosssection)
 
 theta = 0
-cluster_size = 10
-num_clusters_labeled = 50
+cluster_size = 5 
+num_clusters_labeled = 30
 num_clusters_unlabeled = 100
 
 rho = 0.3
 # covariance matrix with ones on the diagonal and rho on the off-diagonal
 sigma = (1-rho)*np.eye(cluster_size) + rho*np.ones((cluster_size, cluster_size))
 
-ppi_correlation = 0.9
-
-
-def _sum_by_cluster(values, cluster_labels):
-    """Sum values within each cluster label."""
-    _, inverse = np.unique(cluster_labels, return_inverse=True)
-    return np.bincount(inverse, weights=values)
+ppi_correlation = 0.5
 
 
 def cluster_ppi_mean_stats(
@@ -65,20 +62,18 @@ def cluster_ppi_mean_stats(
     theta_hat = Y.mean()
     theta_f_hat = np.concatenate([Y_hat, Y_hat_unlabeled]).mean()
 
-    e = Y - theta_hat
-    e_f = Y_hat - theta_f_hat
-    e_f_u = Y_hat_unlabeled - theta_f_hat
+    e = np.column_stack((Y - theta_hat, Y_hat-theta_f_hat))
+    e_tilde = (Y_hat_unlabeled - theta_f_hat).reshape(-1, 1)
 
-    e_j = _sum_by_cluster(e, cluster_labels_labeled)
-    e_j_f = _sum_by_cluster(e_f, cluster_labels_labeled)
-    tilde_e_j_f = _sum_by_cluster(e_f_u, cluster_labels_unlabeled)
+    e_cov = sw.S_crosssection(e, cluster_labels_labeled)
+    e_tilde_cov = sw.S_crosssection(e_tilde, cluster_labels_unlabeled)
 
     n2 = float(n**2)
     N2 = float(N**2)
 
-    A = np.sum(e_j**2) / n2
-    B = np.sum(e_j * e_j_f) / n2
-    C = np.sum(e_j_f**2) / n2 + np.sum(tilde_e_j_f**2) / N2
+    A = e_cov[0,0] / n2
+    B = e_cov[0,1] / n2
+    C = e_cov[1,1] / n2 + e_tilde_cov[0,0] / N2
 
     tol = 1e-12
     if C <= tol:
@@ -143,6 +138,9 @@ def simulate_clustered_data(
         "cluster_labels_labeled": cluster_labels_labeled,
         "cluster_labels_unlabeled": cluster_labels_unlabeled,
     }
+
+
+
 
 def run_coverage_simulation(
     num_simulations=1000,
