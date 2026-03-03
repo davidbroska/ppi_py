@@ -26,6 +26,7 @@ def load_dataset(dataset_folder, dataset_name, download=True):
         "forest": "1Vqi1wSmVnWh_2lLQuDwrhkGcipvoWBc0",
         "galaxies": "1pDLQesPhbH5fSZW1m4aWC-wnJWnp1rGV",
         "gene_expression": "17PwlvAAKeBYGLXPz9L2LVnNJ66XjuyZd",
+        "moralmachine": "1gyzkgHDvkqsoGEXJrNojc0ZVmQx8F0_e",
         "plankton": "1KEk0ZFZ6KiB7_2tdPc5fyBDFNhhJUS_W",
         "tree_cover": "1pdl66Wyz_RQ2Ef0xLFt-D8CLBc3ATF_B",
     }
