@@ -1,4 +1,6 @@
 examples/data/
+examples/moralmachine_reduced.csv.gz
+examples/moralmachine_reduced.npz
 
 # DS_Store
 .DS_Store
