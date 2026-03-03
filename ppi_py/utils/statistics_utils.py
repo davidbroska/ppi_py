@@ -163,6 +163,6 @@ def cov_cluster(x, group):
     if group is None:
         return np.dot(x.T, x)
     else:
-        x_group_sum = group_sums(x, group)
+        x_group_sum = group_sums(x, group).T
     return np.dot(x_group_sum.T, x_group_sum)
     

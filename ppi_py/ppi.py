@@ -587,6 +587,8 @@ def ppi_ols_pointestimate(
     coord=None,
     w=None,
     w_unlabeled=None,
+    group=None,
+    group_unlabeled=None,
 ):
     """Computes the prediction-powered point estimate of the OLS coefficients.
 
@@ -645,6 +647,8 @@ def ppi_ols_pointestimate(
             grads_hat,
             grads_hat_unlabeled,
             inv_hessian,
+            group,
+            group_unlabeled,
             coord,
             clip=True,
         )
@@ -658,6 +662,8 @@ def ppi_ols_pointestimate(
             coord=coord,
             w=w,
             w_unlabeled=w_unlabeled,
+            group=group,
+            group_unlabeled=group_unlabeled,
         )
     else:
         return ppi_pointest
@@ -675,6 +681,8 @@ def ppi_ols_ci(
     coord=None,
     w=None,
     w_unlabeled=None,
+    group=None,
+    group_unlabeled=None,
 ):
     """Computes the prediction-powered confidence interval for the OLS coefficients using the PPI++ algorithm from `[ADZ23] <https://arxiv.org/abs/2311.01453>`__.
 
@@ -690,6 +698,8 @@ def ppi_ols_ci(
         coord (int, optional): Coordinate for which to optimize `lam`. If `None`, it optimizes the total variance over all coordinates. Must be in {1, ..., d} where d is the shape of the estimand.
         w (ndarray, optional): Sample weights for the labeled data set.
         w_unlabeled (ndarray, optional): Sample weights for the unlabeled data set.
+        group: #TODO
+        group_unlabeled: #TODO
 
     Returns:
         tuple: Lower and upper bounds of the prediction-powered confidence interval for the OLS coefficients.
@@ -718,6 +728,8 @@ def ppi_ols_ci(
         coord=coord,
         w=w,
         w_unlabeled=w_unlabeled,
+        group=group,
+        group_unlabeled=group_unlabeled,
     )
     grads, grads_hat, grads_hat_unlabeled, inv_hessian = _ols_get_stats(
         ppi_pointest,
@@ -737,6 +749,8 @@ def ppi_ols_ci(
             grads_hat,
             grads_hat_unlabeled,
             inv_hessian,
+            group,
+            group_unlabeled,
             coord,
             clip=True,
         )
@@ -752,17 +766,23 @@ def ppi_ols_ci(
             coord=coord,
             w=w,
             w_unlabeled=w_unlabeled,
+            group=group,
+            group_unlabeled=group_unlabeled,
         )
 
-    var_unlabeled = np.cov(lam * grads_hat_unlabeled.T).reshape(d, d)
-
-    var = np.cov(grads.T - lam * grads_hat.T).reshape(d, d)
-
-    Sigma_hat = inv_hessian @ (n / N * var_unlabeled + var) @ inv_hessian
+    Sigma_hat = sandwich_cov_glm(
+        grads,
+        grads_hat,
+        grads_hat_unlabeled,
+        inv_hessian,
+        group,
+        group_unlabeled,
+        lam
+    )
 
     return _zconfint_generic(
         ppi_pointest,
-        np.sqrt(np.diag(Sigma_hat) / n),
+        np.sqrt(np.diag(Sigma_hat)),
         alpha=alpha,
         alternative=alternative,
     )
@@ -1833,9 +1853,7 @@ def _calc_lam_glm(
     var_grads_unlabeled = (
         cov_cluster(grads_hat_unlabeled_cent, group_unlabeled) / N**2
     )
-    var_grads_hat = (n**2 / (n + N**2)) * var_grads_stack[
-        d:, d:
-    ] + N**2 / (n + N**2) * var_grads_unlabeled
+    var_grads_hat =  var_grads_stack[d:, d:] + var_grads_unlabeled
 
     vhat = inv_hessian if coord is None else inv_hessian[coord, :]
     if optim_mode == "overall":
@@ -1845,15 +1863,15 @@ def _calc_lam_glm(
             else vhat @ cov_grads @ vhat
         )
         denom = (
-            2 * (1 + (n / N)) * np.trace(vhat @ var_grads_hat @ vhat)
+            np.trace(vhat @ var_grads_hat @ vhat)
             if coord is None
-            else 2 * (1 + (n / N)) * vhat @ var_grads_hat @ vhat
+            else vhat @ var_grads_hat @ vhat
         )
         lam = num / denom
         lam = lam.item()
     elif optim_mode == "element":
         num = np.diag(vhat @ cov_grads @ vhat)
-        denom = 2 * (1 + (n / N)) * np.diag(vhat @ var_grads_hat @ vhat)
+        denom = np.diag(vhat @ var_grads_hat @ vhat)
         lam = num / denom
     else:
         raise ValueError(
@@ -1861,6 +1879,7 @@ def _calc_lam_glm(
         )
     if clip:
         lam = np.clip(lam, 0, 1)
+    print(lam)
     return lam
 
 

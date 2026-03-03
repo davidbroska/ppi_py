@@ -1,16 +1,20 @@
 import numpy as np
 from statistics import NormalDist
 import statsmodels.stats.sandwich_covariance as sw
+from ppi_py import ppi_mean_pointestimate, ppi_mean_ci
+from ppi_py.utils import cov_cluster
 
 
 theta = 0
-cluster_size = 5 
-num_clusters_labeled = 30
-num_clusters_unlabeled = 100
+cluster_size = 5
+num_clusters_labeled = 300
+num_clusters_unlabeled = 1000
 
 rho = 0.3
 # covariance matrix with ones on the diagonal and rho on the off-diagonal
-sigma = (1-rho)*np.eye(cluster_size) + rho*np.ones((cluster_size, cluster_size))
+sigma = (1 - rho) * np.eye(cluster_size) + rho * np.ones(
+    (cluster_size, cluster_size)
+)
 
 ppi_correlation = 0.5
 
@@ -52,7 +56,9 @@ def cluster_ppi_mean_stats(
     if cluster_labels_unlabeled is None:
         cluster_labels_unlabeled = np.arange(N)
     else:
-        cluster_labels_unlabeled = np.asarray(cluster_labels_unlabeled).reshape(-1)
+        cluster_labels_unlabeled = np.asarray(
+            cluster_labels_unlabeled
+        ).reshape(-1)
         if cluster_labels_unlabeled.size != N:
             raise ValueError(
                 "cluster_labels_unlabeled must have the same length as Y_hat_unlabeled."
@@ -61,7 +67,7 @@ def cluster_ppi_mean_stats(
     theta_hat = Y.mean()
     theta_f_hat = np.concatenate([Y_hat, Y_hat_unlabeled]).mean()
 
-    e = np.column_stack((Y - theta_hat, Y_hat-theta_f_hat))
+    e = np.column_stack((Y - theta_hat, Y_hat - theta_f_hat))
     e_tilde = (Y_hat_unlabeled - theta_f_hat).reshape(-1, 1)
 
     e_cov = sw.S_crosssection(e, cluster_labels_labeled)
@@ -70,13 +76,15 @@ def cluster_ppi_mean_stats(
     n2 = float(n**2)
     N2 = float(N**2)
 
-    A = e_cov[0,0] / n2
-    B = e_cov[0,1] / n2
-    C = e_cov[1,1] / n2 + e_tilde_cov[0,0] / N2
+    A = e_cov[0, 0] / n2
+    B = e_cov[0, 1] / n2
+    C = e_cov[1, 1] / n2 + e_tilde_cov[0, 0] / N2
 
     tol = 1e-12
     if C <= tol:
-        raise ValueError("Degenerate lambda denominator: cannot compute lambda_hat.")
+        raise ValueError(
+            "Degenerate lambda denominator: cannot compute lambda_hat."
+        )
 
     lambda_hat = B / C
     point_estimate = np.mean(Y - lambda_hat * Y_hat) + lambda_hat * np.mean(
@@ -86,8 +94,8 @@ def cluster_ppi_mean_stats(
     var_hat = A - (B**2) / C
     var_hat = max(var_hat, 0.0)
     standard_error = np.sqrt(var_hat)
-
-    return float(point_estimate), float(standard_error), float(lambda_hat)
+    print(lambda_hat)
+    return float(point_estimate), float(standard_error)
 
 
 def simulate_clustered_data(
@@ -101,11 +109,15 @@ def simulate_clustered_data(
 ):
     rng = np.random.default_rng(seed)
 
-    sigma = (1 - rho) * np.eye(cluster_size) + rho * np.ones((cluster_size, cluster_size))
+    sigma = (1 - rho) * np.eye(cluster_size) + rho * np.ones(
+        (cluster_size, cluster_size)
+    )
     mean = np.full(cluster_size, theta)
 
     # One multivariate Gaussian draw per cluster (dimension = cluster_size).
-    Y_clustered = rng.multivariate_normal(mean=mean, cov=sigma, size=num_clusters_labeled)
+    Y_clustered = rng.multivariate_normal(
+        mean=mean, cov=sigma, size=num_clusters_labeled
+    )
     Y_unlabeled_clustered = rng.multivariate_normal(
         mean=mean, cov=sigma, size=num_clusters_unlabeled
     )
@@ -114,8 +126,9 @@ def simulate_clustered_data(
     Y_hat_clustered = ppi_correlation * Y_clustered + rng.normal(
         loc=0.0, scale=noise_sd, size=Y_clustered.shape
     )
-    Y_hat_unlabeled_clustered = ppi_correlation * Y_unlabeled_clustered + rng.normal(
-        loc=0.0, scale=noise_sd, size=Y_unlabeled_clustered.shape
+    Y_hat_unlabeled_clustered = (
+        ppi_correlation * Y_unlabeled_clustered
+        + rng.normal(loc=0.0, scale=noise_sd, size=Y_unlabeled_clustered.shape)
     )
 
     # Flatten to observation-level vectors.
@@ -124,9 +137,13 @@ def simulate_clustered_data(
     Y_hat_unlabeled = Y_hat_unlabeled_clustered.reshape(-1)
 
     # Distinct cluster labels with one label per flattened observation.
-    cluster_labels_labeled = np.repeat(np.arange(num_clusters_labeled), cluster_size)
+    cluster_labels_labeled = np.repeat(
+        np.arange(num_clusters_labeled), cluster_size
+    )
     cluster_labels_unlabeled = np.repeat(
-        np.arange(num_clusters_labeled, num_clusters_labeled + num_clusters_unlabeled),
+        np.arange(
+            num_clusters_labeled, num_clusters_labeled + num_clusters_unlabeled
+        ),
         cluster_size,
     )
 
@@ -137,8 +154,6 @@ def simulate_clustered_data(
         "cluster_labels_labeled": cluster_labels_labeled,
         "cluster_labels_unlabeled": cluster_labels_unlabeled,
     }
-
-
 
 
 def run_coverage_simulation(
@@ -157,14 +172,12 @@ def run_coverage_simulation(
 
     point_estimates_cluster = np.empty(num_simulations)
     standard_errors_cluster = np.empty(num_simulations)
-    lambda_hats_cluster = np.empty(num_simulations)
     ci_lower_cluster = np.empty(num_simulations)
     ci_upper_cluster = np.empty(num_simulations)
     covered_cluster = np.empty(num_simulations, dtype=bool)
 
     point_estimates_naive = np.empty(num_simulations)
     standard_errors_naive = np.empty(num_simulations)
-    lambda_hats_naive = np.empty(num_simulations)
     ci_lower_naive = np.empty(num_simulations)
     ci_upper_naive = np.empty(num_simulations)
     covered_naive = np.empty(num_simulations, dtype=bool)
@@ -178,14 +191,14 @@ def run_coverage_simulation(
         cluster_labels_labeled = sim_data["cluster_labels_labeled"]
         cluster_labels_unlabeled = sim_data["cluster_labels_unlabeled"]
 
-        point_estimate_c, standard_error_c, lambda_hat_c = cluster_ppi_mean_stats(
+        point_estimate_c, standard_error_c = cluster_ppi_mean_stats(
             Y,
             Y_hat,
             Y_hat_unlabeled,
             cluster_labels_labeled,
             cluster_labels_unlabeled,
         )
-        point_estimate_n, standard_error_n, lambda_hat_n = cluster_ppi_mean_stats(
+        point_estimate_n, standard_error_n = cluster_ppi_mean_stats(
             Y,
             Y_hat,
             Y_hat_unlabeled,
@@ -200,14 +213,12 @@ def run_coverage_simulation(
 
         point_estimates_cluster[s] = point_estimate_c
         standard_errors_cluster[s] = standard_error_c
-        lambda_hats_cluster[s] = lambda_hat_c
         ci_lower_cluster[s] = lower_c
         ci_upper_cluster[s] = upper_c
         covered_cluster[s] = lower_c <= theta_true <= upper_c
 
         point_estimates_naive[s] = point_estimate_n
         standard_errors_naive[s] = standard_error_n
-        lambda_hats_naive[s] = lambda_hat_n
         ci_lower_naive[s] = lower_n
         ci_upper_naive[s] = upper_n
         covered_naive[s] = lower_n <= theta_true <= upper_n
@@ -220,35 +231,96 @@ def run_coverage_simulation(
         "coverage_naive": coverage_naive,
         "point_estimates_cluster": point_estimates_cluster,
         "standard_errors_cluster": standard_errors_cluster,
-        "lambda_hats_cluster": lambda_hats_cluster,
         "ci_lower_cluster": ci_lower_cluster,
         "ci_upper_cluster": ci_upper_cluster,
         "covered_cluster": covered_cluster,
         "point_estimates_naive": point_estimates_naive,
         "standard_errors_naive": standard_errors_naive,
-        "lambda_hats_naive": lambda_hats_naive,
         "ci_lower_naive": ci_lower_naive,
         "ci_upper_naive": ci_upper_naive,
         "covered_naive": covered_naive,
     }
 
 
-sim_data = simulate_clustered_data(seed=0)
+sim_data = simulate_clustered_data(seed=1)
 Y = sim_data["Y"]
 Y_hat = sim_data["Y_hat"]
 Y_hat_unlabeled = sim_data["Y_hat_unlabeled"]
 cluster_labels_labeled = sim_data["cluster_labels_labeled"]
 cluster_labels_unlabeled = sim_data["cluster_labels_unlabeled"]
 
+point_estimate, standard_error = cluster_ppi_mean_stats(
+    Y,
+    Y_hat,
+    Y_hat_unlabeled,
+    cluster_labels_labeled,
+    cluster_labels_unlabeled,
+)
+print(
+    f"Cluster-robust point estimate: {point_estimate:.3f}, SE: {standard_error:.3f}"
+)
 
-if __name__ == "__main__":
-    results = run_coverage_simulation(theta_true = theta,num_simulations=1000, alpha=0.05)
-    print(f"Cluster-robust coverage: {results['coverage_cluster']:.3f}")
-    print(f"Naive coverage: {results['coverage_naive']:.3f}")
-    print(f"RMSE (cluster-robust): {(((results['point_estimates_cluster']-theta)**2).mean())**0.5:.3f}")
-    print(f"RMSE (naive): {(((results['point_estimates_naive']-theta)**2).mean())**0.5:.3f}")
-    print(f"Average se (cluster-robust): {results['standard_errors_cluster'].mean():.3f}")
-    print(f"Average se (naive): {results['standard_errors_naive'].mean():.3f}")
-    print(f"Average lambda_hat (cluster-robust): {results['lambda_hats_cluster'].mean():.3f}")
-    print(f"Average lambda_hat (naive): {results['lambda_hats_naive'].mean():.3f}")
+# grads = Y - np.mean(Y)
+# cov_cluster_labeled = cov_cluster(grads, cluster_labels_labeled)
+# cov_naive = cov_cluster(grads, None)
+# print(cov_cluster_labeled.shape)
+# print(cov_naive)
 
+ppi_point_estimate = float(ppi_mean_pointestimate(
+    Y,
+    Y_hat,
+    Y_hat_unlabeled,
+    group=cluster_labels_labeled,
+    group_unlabeled=cluster_labels_unlabeled,
+))
+
+ppi_point_estimate_naive = float(ppi_mean_pointestimate(
+    Y,
+    Y_hat,
+    Y_hat_unlabeled,
+    group=None,
+    group_unlabeled=None,
+))
+
+print(f"PPI point estimate: {ppi_point_estimate:.3f}")
+print(f"PPI point estimate (naive): {ppi_point_estimate_naive:.3f}")
+
+conf_int = ppi_mean_ci(
+    Y,
+    Y_hat,
+    Y_hat_unlabeled,
+    alpha=0.05,
+    group=cluster_labels_labeled,
+    group_unlabeled=cluster_labels_unlabeled,
+)
+
+conf_int_naive = ppi_mean_ci(
+    Y,
+    Y_hat,
+    Y_hat_unlabeled,
+    alpha=0.05,
+    group=None,
+    group_unlabeled=None,
+)
+print(f"PPI 95% CI: [{float(conf_int[0]):.3f}, {float(conf_int[1]):.3f}]")
+print(f"Other CI: [{point_estimate - 1.96 * standard_error:.3f}, {point_estimate + 1.96 * standard_error:.3f}]")
+print(f"PPI 95% CI (naive): [{float(conf_int_naive[0]):.3f}, {float(conf_int_naive[1]):.3f}]")
+
+
+
+# if __name__ == "__main__":
+#     results = run_coverage_simulation(
+#         theta_true=theta, num_simulations=1000, alpha=0.05
+#     )
+#     print(f"Cluster-robust coverage: {results['coverage_cluster']:.3f}")
+#     print(f"Naive coverage: {results['coverage_naive']:.3f}")
+#     print(
+#         f"RMSE (cluster-robust): {(((results['point_estimates_cluster']-theta)**2).mean())**0.5:.3f}"
+#     )
+#     print(
+#         f"RMSE (naive): {(((results['point_estimates_naive']-theta)**2).mean())**0.5:.3f}"
+#     )
+#     print(
+#         f"Average se (cluster-robust): {results['standard_errors_cluster'].mean():.3f}"
+#     )
+#     print(f"Average se (naive): {results['standard_errors_naive'].mean():.3f}")
