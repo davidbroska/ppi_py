@@ -116,7 +116,7 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         args.output,
-        UserID=out["UserID"].astype(str).to_numpy(),
+        UserID=np.asarray(out["UserID"].astype(str), dtype=np.str_),
         weights=out["weights"].to_numpy(),
         Intervention=out["Intervention"].to_numpy(),
         Saved=out["Saved"].to_numpy(),
