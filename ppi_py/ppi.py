@@ -191,6 +191,8 @@ def ppi_mean_ci(
             lam=1,
             w=w,
             w_unlabeled=w_unlabeled,
+            group=group,
+            group_unlabeled=group_unlabeled,
         )
         grads = w * (Y - ppi_pointest)
         grads_hat = w * (Yhat - ppi_pointest)
@@ -216,6 +218,8 @@ def ppi_mean_ci(
             coord=coord,
             w=w,
             w_unlabeled=w_unlabeled,
+            group=group,
+            group_unlabeled=group_unlabeled,
         )
 
     ppi_pointest = ppi_mean_pointestimate(
@@ -226,6 +230,8 @@ def ppi_mean_ci(
         coord=coord,
         w=w,
         w_unlabeled=w_unlabeled,
+        group=group,
+        group_unlabeled=group_unlabeled,
     )
     grads = w * (Y - ppi_pointest)
     grads_hat = w * (Yhat - ppi_pointest)
@@ -1848,7 +1854,7 @@ def _calc_lam_glm(
         axis=0
     )
     var_grads_stack = cov_cluster(grad_stack, group) / n**2
-    cov_grads = var_grads_stack[:d, d:]
+    cov_grads = var_grads_stack[:d, d:] + var_grads_stack[d:, :d]
 
     var_grads_unlabeled = (
         cov_cluster(grads_hat_unlabeled_cent, group_unlabeled) / N**2
@@ -1863,7 +1869,7 @@ def _calc_lam_glm(
             else vhat @ cov_grads @ vhat
         )
         denom = (
-            np.trace(vhat @ var_grads_hat @ vhat)
+            2*np.trace(vhat @ var_grads_hat @ vhat)
             if coord is None
             else vhat @ var_grads_hat @ vhat
         )
@@ -1871,7 +1877,7 @@ def _calc_lam_glm(
         lam = lam.item()
     elif optim_mode == "element":
         num = np.diag(vhat @ cov_grads @ vhat)
-        denom = np.diag(vhat @ var_grads_hat @ vhat)
+        denom = 2*np.diag(vhat @ var_grads_hat @ vhat)
         lam = num / denom
     else:
         raise ValueError(
@@ -1879,7 +1885,6 @@ def _calc_lam_glm(
         )
     if clip:
         lam = np.clip(lam, 0, 1)
-    print(lam)
     return lam
 
 

@@ -1,7 +1,7 @@
 import numpy as np
 from statistics import NormalDist
 import statsmodels.stats.sandwich_covariance as sw
-from ppi_py import ppi_mean_pointestimate, ppi_mean_ci
+from ppi_py.ppi import ppi_mean_pointestimate, ppi_mean_ci, _calc_lam_glm, sandwich_cov_glm
 from ppi_py.utils import cov_cluster
 
 theta = 0
@@ -92,9 +92,9 @@ def cluster_ppi_mean_stats(
 
     var_hat = A - (B**2) / C
     var_hat = max(var_hat, 0.0)
+    var_hat = sw.S_crosssection(e[:, 0] - lambda_hat * e[:, 1], cluster_labels_labeled) / n2 + sw.S_crosssection(lambda_hat * e_tilde, cluster_labels_unlabeled) / N2
     standard_error = np.sqrt(var_hat)
-    print(lambda_hat)
-    return float(point_estimate), float(standard_error)
+    return float(point_estimate), float(standard_error), lambda_hat
 
 
 def simulate_clustered_data(
@@ -155,9 +155,7 @@ def simulate_clustered_data(
     }
 
 
-
-
-sim_data = simulate_clustered_data(seed=1)
+sim_data = simulate_clustered_data(seed=10)
 Y = sim_data["Y"]
 Y_hat = sim_data["Y_hat"]
 Y_hat_unlabeled = sim_data["Y_hat_unlabeled"]
@@ -181,3 +179,53 @@ e_tilde_cov_ppi = cov_cluster(e_tilde, cluster_labels_unlabeled)
 print(e_cov_ppi)
 print(e_tilde_cov_ppi)
 
+point_estimate, standard_error, lambda_hat = cluster_ppi_mean_stats(
+    Y,
+    Y_hat,
+    Y_hat_unlabeled,
+    cluster_labels_labeled=cluster_labels_labeled,
+    cluster_labels_unlabeled=cluster_labels_unlabeled,
+)
+print(f"Lambda Hat: {lambda_hat:.4f}")
+print(f"Point Estimate: {point_estimate:.4f}")
+print(f"Standard Error: {standard_error:.4f}")
+
+ppi_point_estimate = ppi_mean_pointestimate(
+    Y,
+    Y_hat,
+    Y_hat_unlabeled,
+    group=cluster_labels_labeled,
+    group_unlabeled=cluster_labels_unlabeled,
+)
+
+ppi_ci_lower, ppi_ci_upper = ppi_mean_ci(
+    Y,
+    Y_hat,
+    Y_hat_unlabeled,
+    group=cluster_labels_labeled,
+    group_unlabeled=cluster_labels_unlabeled,
+    alpha=0.05,
+)
+H = np.eye(1)
+
+lam = _calc_lam_glm(
+    Y,
+    Y_hat,
+    Y_hat_unlabeled,
+    inv_hessian=H,
+    group=cluster_labels_labeled,
+    group_unlabeled=cluster_labels_unlabeled,
+)
+Sigma = sandwich_cov_glm(
+    Y,
+    Y_hat,
+    Y_hat_unlabeled,
+    lam = lambda_hat,
+    inv_hessian=H,
+    group=cluster_labels_labeled,
+    group_unlabeled=cluster_labels_unlabeled,
+)
+print(f"Lambda GLM: {lam:.4f}")
+print(f"PPI Point Estimate: {float(ppi_point_estimate):.4f}")
+print(f"PPI 95% CI: [{float(ppi_ci_lower):.4f}, {float(ppi_ci_upper):.4f}]")
+print(f"GLM Sandwich Covariance: {float(Sigma**0.5):.4f}")

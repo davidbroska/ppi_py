@@ -94,7 +94,6 @@ def cluster_ppi_mean_stats(
     var_hat = A - (B**2) / C
     var_hat = max(var_hat, 0.0)
     standard_error = np.sqrt(var_hat)
-    print(lambda_hat)
     return float(point_estimate), float(standard_error)
 
 
@@ -182,6 +181,13 @@ def run_coverage_simulation(
     ci_upper_naive = np.empty(num_simulations)
     covered_naive = np.empty(num_simulations, dtype=bool)
 
+    point_estimates_ppi = np.empty(num_simulations)
+    standard_errors_ppi = np.empty(num_simulations)
+    ci_lower_ppi = np.empty(num_simulations)
+    ci_upper_ppi = np.empty(num_simulations)
+    covered_ppi = np.empty(num_simulations, dtype=bool)
+
+
     for s in range(num_simulations):
         sim_data = simulate_clustered_data(seed=simulation_seed + s)
 
@@ -205,6 +211,22 @@ def run_coverage_simulation(
             cluster_labels_labeled=None,
             cluster_labels_unlabeled=None,
         )
+        point_estimate_p = ppi_mean_pointestimate(
+            Y,
+            Y_hat,
+            Y_hat_unlabeled,
+            group=cluster_labels_labeled,
+            group_unlabeled=cluster_labels_unlabeled,
+        )
+        ci_lower_p, ci_upper_p = ppi_mean_ci(
+            Y,
+            Y_hat,
+            Y_hat_unlabeled,
+            alpha=alpha,
+            group=cluster_labels_labeled,
+            group_unlabeled=cluster_labels_unlabeled,
+        )
+        standard_error_p = (ci_upper_p - ci_lower_p) / (2 * z_value)
 
         lower_c = point_estimate_c - z_value * standard_error_c
         upper_c = point_estimate_c + z_value * standard_error_c
@@ -223,12 +245,20 @@ def run_coverage_simulation(
         ci_upper_naive[s] = upper_n
         covered_naive[s] = lower_n <= theta_true <= upper_n
 
+        point_estimates_ppi[s] = point_estimate_p
+        standard_errors_ppi[s] = standard_error_p
+        ci_lower_ppi[s] = ci_lower_p
+        ci_upper_ppi[s] = ci_upper_p
+        covered_ppi[s] = ci_lower_p <= theta_true <= ci_upper_p
+
     coverage_cluster = covered_cluster.mean()
     coverage_naive = covered_naive.mean()
+    coverage_ppi = covered_ppi.mean()
 
     return {
         "coverage_cluster": coverage_cluster,
         "coverage_naive": coverage_naive,
+        "coverage_ppi": coverage_ppi,
         "point_estimates_cluster": point_estimates_cluster,
         "standard_errors_cluster": standard_errors_cluster,
         "ci_lower_cluster": ci_lower_cluster,
@@ -239,26 +269,31 @@ def run_coverage_simulation(
         "ci_lower_naive": ci_lower_naive,
         "ci_upper_naive": ci_upper_naive,
         "covered_naive": covered_naive,
+        "point_estimates_ppi": point_estimates_ppi,
+        "standard_errors_ppi": standard_errors_ppi,
+        "ci_lower_ppi": ci_lower_ppi,
+        "ci_upper_ppi": ci_upper_ppi,
+        "covered_ppi": covered_ppi,
     }
 
 
-sim_data = simulate_clustered_data(seed=1)
-Y = sim_data["Y"]
-Y_hat = sim_data["Y_hat"]
-Y_hat_unlabeled = sim_data["Y_hat_unlabeled"]
-cluster_labels_labeled = sim_data["cluster_labels_labeled"]
-cluster_labels_unlabeled = sim_data["cluster_labels_unlabeled"]
+# sim_data = simulate_clustered_data(seed=1)
+# Y = sim_data["Y"]
+# Y_hat = sim_data["Y_hat"]
+# Y_hat_unlabeled = sim_data["Y_hat_unlabeled"]
+# cluster_labels_labeled = sim_data["cluster_labels_labeled"]
+# cluster_labels_unlabeled = sim_data["cluster_labels_unlabeled"]
 
-point_estimate, standard_error = cluster_ppi_mean_stats(
-    Y,
-    Y_hat,
-    Y_hat_unlabeled,
-    cluster_labels_labeled,
-    cluster_labels_unlabeled,
-)
-print(
-    f"Cluster-robust point estimate: {point_estimate:.3f}, SE: {standard_error:.3f}"
-)
+# point_estimate, standard_error = cluster_ppi_mean_stats(
+#     Y,
+#     Y_hat,
+#     Y_hat_unlabeled,
+#     cluster_labels_labeled,
+#     cluster_labels_unlabeled,
+# )
+# print(
+#     f"Cluster-robust point estimate: {point_estimate:.3f}, SE: {standard_error:.3f}"
+# )
 
 # grads = Y - np.mean(Y)
 # cov_cluster_labeled = cov_cluster(grads, cluster_labels_labeled)
@@ -266,61 +301,74 @@ print(
 # print(cov_cluster_labeled.shape)
 # print(cov_naive)
 
-ppi_point_estimate = float(ppi_mean_pointestimate(
-    Y,
-    Y_hat,
-    Y_hat_unlabeled,
-    group=cluster_labels_labeled,
-    group_unlabeled=cluster_labels_unlabeled,
-))
+# ppi_point_estimate = float(ppi_mean_pointestimate(
+#     Y,
+#     Y_hat,
+#     Y_hat_unlabeled,
+#     group=cluster_labels_labeled,
+#     group_unlabeled=cluster_labels_unlabeled,
+# ))
 
-ppi_point_estimate_naive = float(ppi_mean_pointestimate(
-    Y,
-    Y_hat,
-    Y_hat_unlabeled,
-    group=None,
-    group_unlabeled=None,
-))
+# ppi_point_estimate_naive = float(ppi_mean_pointestimate(
+#     Y,
+#     Y_hat,
+#     Y_hat_unlabeled,
+#     group=None,
+#     group_unlabeled=None,
+# ))
 
-print(f"PPI point estimate: {ppi_point_estimate:.3f}")
-print(f"PPI point estimate (naive): {ppi_point_estimate_naive:.3f}")
+# print(f"PPI point estimate: {ppi_point_estimate:.3f}")
+# print(f"PPI point estimate (naive): {ppi_point_estimate_naive:.3f}")
 
-conf_int = ppi_mean_ci(
-    Y,
-    Y_hat,
-    Y_hat_unlabeled,
-    alpha=0.05,
-    group=cluster_labels_labeled,
-    group_unlabeled=cluster_labels_unlabeled,
-)
+# conf_int = ppi_mean_ci(
+#     Y,
+#     Y_hat,
+#     Y_hat_unlabeled,
+#     alpha=0.05,
+#     group=cluster_labels_labeled,
+#     group_unlabeled=cluster_labels_unlabeled,
+# )
 
-conf_int_naive = ppi_mean_ci(
-    Y,
-    Y_hat,
-    Y_hat_unlabeled,
-    alpha=0.05,
-    group=None,
-    group_unlabeled=None,
-)
-print(f"PPI 95% CI: [{float(conf_int[0]):.3f}, {float(conf_int[1]):.3f}]")
-print(f"Other CI: [{point_estimate - 1.96 * standard_error:.3f}, {point_estimate + 1.96 * standard_error:.3f}]")
-print(f"PPI 95% CI (naive): [{float(conf_int_naive[0]):.3f}, {float(conf_int_naive[1]):.3f}]")
+# conf_int_naive = ppi_mean_ci(
+#     Y,
+#     Y_hat,
+#     Y_hat_unlabeled,
+#     alpha=0.05,
+#     group=None,
+#     group_unlabeled=None,
+# )
+# print(f"PPI 95% CI: [{float(conf_int[0]):.3f}, {float(conf_int[1]):.3f}]")
+# print(f"Other CI: [{point_estimate - 1.96 * standard_error:.3f}, {point_estimate + 1.96 * standard_error:.3f}]")
+# print(f"PPI 95% CI (naive): [{float(conf_int_naive[0]):.3f}, {float(conf_int_naive[1]):.3f}]")
 
 
 
-# if __name__ == "__main__":
-#     results = run_coverage_simulation(
-#         theta_true=theta, num_simulations=1000, alpha=0.05
-#     )
-#     print(f"Cluster-robust coverage: {results['coverage_cluster']:.3f}")
-#     print(f"Naive coverage: {results['coverage_naive']:.3f}")
-#     print(
-#         f"RMSE (cluster-robust): {(((results['point_estimates_cluster']-theta)**2).mean())**0.5:.3f}"
-#     )
-#     print(
-#         f"RMSE (naive): {(((results['point_estimates_naive']-theta)**2).mean())**0.5:.3f}"
-#     )
-#     print(
-#         f"Average se (cluster-robust): {results['standard_errors_cluster'].mean():.3f}"
-#     )
-#     print(f"Average se (naive): {results['standard_errors_naive'].mean():.3f}")
+if __name__ == "__main__":
+    results = run_coverage_simulation(
+        theta_true=theta, num_simulations=1000, alpha=0.05, simulation_seed=10**6
+    )
+    print(f"Cluster-robust coverage: {results['coverage_cluster']:.3f}")
+    print(f"Naive coverage: {results['coverage_naive']:.3f}")
+    print(f"PPI coverage: {results['coverage_ppi']:.3f}")
+    print(
+        f"RMSE (cluster-robust): {(((results['point_estimates_cluster']-theta)**2).mean())**0.5:.3f}"
+    )
+    print(
+        f"RMSE (naive): {(((results['point_estimates_naive']-theta)**2).mean())**0.5:.3f}"
+    )
+    print(
+        f"RMSE (PPI): {(((results['point_estimates_ppi']-theta)**2).mean())**0.5:.3f}"
+    )
+    print(
+        f"Average se (cluster-robust): {results['standard_errors_cluster'].mean():.3f}"
+    )
+    print(f"Average se (naive): {results['standard_errors_naive'].mean():.3f}")
+    print(
+        f"Average se (PPI): {float(results['standard_errors_ppi'].mean()):.3f}"
+    )
+    print(
+        f"Average distance between estimators: {np.abs(results['point_estimates_cluster'] - results['point_estimates_ppi']).mean()}"
+    )
+    print(
+        f"Average distance between ses: {np.abs(results['standard_errors_cluster'] - results['standard_errors_ppi']).mean()}"
+    )
