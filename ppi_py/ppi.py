@@ -8,7 +8,6 @@ from statsmodels.stats.weightstats import (
     _zstat_generic,
     _zstat_generic2,
 )
-import statsmodels.stats.sandwich_covariance as sw
 from sklearn.linear_model import LogisticRegression, PoissonRegressor
 import warnings
 
@@ -103,7 +102,6 @@ def ppi_mean_pointestimate(
 
     w = construct_weight_vector(n, w, vectorized=True)
     w_unlabeled = construct_weight_vector(N, w_unlabeled, vectorized=True)
-
 
     if lam is None:
         ppi_pointest = (w_unlabeled * Yhat_unlabeled).mean(0) + (
@@ -229,13 +227,23 @@ def ppi_mean_ci(
         w=w,
         w_unlabeled=w_unlabeled,
     )
-
-    imputed_std = (w_unlabeled * (lam * Yhat_unlabeled)).std(0) / np.sqrt(N)
-    rectifier_std = (w * (Y - lam * Yhat)).std(0) / np.sqrt(n)
+    grads = w * (Y - ppi_pointest)
+    grads_hat = w * (Yhat - ppi_pointest)
+    grads_hat_unlabeled = w_unlabeled * (Yhat_unlabeled - ppi_pointest)
+    inv_hessian = np.eye(d)
+    Sigma_hat = sandwich_cov_glm(
+        grads,
+        grads_hat,
+        grads_hat_unlabeled,
+        inv_hessian,
+        group,
+        group_unlabeled,
+        lam
+    )
 
     return _zconfint_generic(
         ppi_pointest,
-        np.sqrt(imputed_std**2 + rectifier_std**2),
+        np.sqrt(np.diag(Sigma_hat)),
         alpha,
         alternative,
     )
@@ -1816,13 +1824,18 @@ def _calc_lam_glm(
     grads_cent = grads - grads.mean(axis=0)
     grads_hat_cent = grads_hat - grads_hat.mean(axis=0)
     grad_stack = np.column_stack([grads_cent, grads_hat_cent])
-    grads_hat_unlabeled_cent = grads_hat_unlabeled - grads_hat_unlabeled.mean(axis=0)
-    var_grads_stack = (cov_cluster(grad_stack, group) / n**2)
+    grads_hat_unlabeled_cent = grads_hat_unlabeled - grads_hat_unlabeled.mean(
+        axis=0
+    )
+    var_grads_stack = cov_cluster(grad_stack, group) / n**2
     cov_grads = var_grads_stack[:d, d:]
 
-    var_grads_unlabeled = cov_cluster(grads_hat_unlabeled_cent, group_unlabeled) / N**2
-    var_grads_hat = (n**2/(n+N**2)) * var_grads_stack[d:, d:] + N**2/(n+N**2) * var_grads_unlabeled
-
+    var_grads_unlabeled = (
+        cov_cluster(grads_hat_unlabeled_cent, group_unlabeled) / N**2
+    )
+    var_grads_hat = (n**2 / (n + N**2)) * var_grads_stack[
+        d:, d:
+    ] + N**2 / (n + N**2) * var_grads_unlabeled
 
     vhat = inv_hessian if coord is None else inv_hessian[coord, :]
     if optim_mode == "overall":
@@ -1926,3 +1939,52 @@ def ppi_distribution_label_shift_ci(
         return count_lb, count_ub
     else:
         return qyhat_lb, qyhat_ub
+
+
+def sandwich_cov_glm(
+    grads,
+    grads_hat,
+    grads_hat_unlabeled,
+    inv_hessian,
+    group,
+    group_unlabeled,
+    lam,
+):
+    """
+    Estimates the covariance matrix of the prediction-powered estimator for GLM using the sandwich estimator.
+
+    Args:
+        grads (ndarray): Gradient of the loss function with respect to the parameter evaluated at the labeled data.
+        grads_hat (ndarray): Gradient of the loss function with respect to the model parameter evaluated using predictions on the labeled data.
+        grads_hat_unlabeled (ndarray): Gradient of the loss function with respect to the parameter evaluated using predictions on the unlabeled data.
+        inv_hessian (ndarray): Inverse of the Hessian of the loss function with respect to the parameter.
+        group: #TODO
+        group_unlabeled: #TODO
+        lam (float): Power-tuning parameter.
+        
+    Returns:
+        Sigma_hat: covariance matrix of the prediction-powered estimator for GLM.
+    """
+
+    grads = reshape_to_2d(grads)
+    grads_hat = reshape_to_2d(grads_hat)
+    grads_hat_unlabeled = reshape_to_2d(grads_hat_unlabeled)
+    n = grads.shape[0]
+    N = grads_hat_unlabeled.shape[0]
+    d = inv_hessian.shape[0]
+    if grads.shape[1] != d:
+        raise ValueError(
+            "Dimension mismatch between the gradient and the inverse Hessian."
+        )
+
+    grads_cent = grads - grads.mean(axis=0)
+    grads_hat_cent = grads_hat - grads_hat.mean(axis=0)
+    grads_hat_unlabeled_cent = grads_hat_unlabeled - grads_hat_unlabeled.mean(axis=0)
+    
+
+    var_unlabeled = cov_cluster(lam * grads_hat_unlabeled_cent, group_unlabeled) / N**2
+    var = cov_cluster(grads_cent - lam * grads_hat_cent, group) / n**2
+    Sigma_hat = inv_hessian @ (n / N * var_unlabeled + var) @ inv_hessian
+    return Sigma_hat
+
+
