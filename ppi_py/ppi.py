@@ -811,6 +811,8 @@ def ppi_logistic_pointestimate(
     optimizer_options=None,
     w=None,
     w_unlabeled=None,
+    group=None,
+    group_unlabeled=None,
 ):
     """Computes the prediction-powered point estimate of the logistic regression coefficients.
 
@@ -925,6 +927,9 @@ def ppi_logistic_pointestimate(
             grads_hat,
             grads_hat_unlabeled,
             inv_hessian,
+            group,
+            group_unlabeled,
+            coord,
             clip=True,
         )
         return ppi_logistic_pointestimate(
@@ -938,6 +943,8 @@ def ppi_logistic_pointestimate(
             coord=coord,
             w=w,
             w_unlabeled=w_unlabeled,
+            group=group,
+            group_unlabeled=group_unlabeled,
         )
     else:
         return ppi_pointest
@@ -1030,6 +1037,8 @@ def ppi_logistic_pval(
     optimizer_options=None,
     w=None,
     w_unlabeled=None,
+    group=None,
+    group_unlabeled=None,
     alternative="two-sided",
 ):
     """Computes the prediction-powered pvalues on the logistic regression coefficients for the null hypothesis that the coefficient is zero.
@@ -1075,6 +1084,8 @@ def ppi_logistic_pval(
         coord=coord,
         w=w,
         w_unlabeled=w_unlabeled,
+        group=group,
+        group_unlabeled=group_unlabeled,
     )
 
     grads, grads_hat, grads_hat_unlabeled, inv_hessian = _logistic_get_stats(
@@ -1095,6 +1106,9 @@ def ppi_logistic_pval(
             grads_hat,
             grads_hat_unlabeled,
             inv_hessian,
+            group,
+            group_unlabeled,
+            coord,
             clip=True,
         )
         return ppi_logistic_pval(
@@ -1108,6 +1122,8 @@ def ppi_logistic_pval(
             coord=coord,
             w=w,
             w_unlabeled=w_unlabeled,
+            group=group,
+            group_unlabeled=group_unlabeled,
             alternative=alternative,
         )
 
@@ -1138,6 +1154,8 @@ def ppi_logistic_ci(
     optimizer_options=None,
     w=None,
     w_unlabeled=None,
+    group=None,
+    group_unlabeled=None,
 ):
     """Computes the prediction-powered confidence interval for the logistic regression coefficients using the PPI++ algorithm from `[ADZ23] <https://arxiv.org/abs/2311.01453>`__.
 
@@ -1183,6 +1201,8 @@ def ppi_logistic_ci(
         coord=coord,
         w=w,
         w_unlabeled=w_unlabeled,
+        group=group,
+        group_unlabeled=group_unlabeled,
     )
 
     grads, grads_hat, grads_hat_unlabeled, inv_hessian = _logistic_get_stats(
@@ -1202,6 +1222,9 @@ def ppi_logistic_ci(
             grads_hat,
             grads_hat_unlabeled,
             inv_hessian,
+            group,
+            group_unlabeled,
+            coord,
             clip=True,
         )
         return ppi_logistic_ci(
@@ -1217,13 +1240,19 @@ def ppi_logistic_ci(
             coord=coord,
             w=w,
             w_unlabeled=w_unlabeled,
+            group=group,
+            group_unlabeled=group_unlabeled,
         )
 
-    var_unlabeled = np.cov(lam * grads_hat_unlabeled.T).reshape(d, d)
-
-    var = np.cov(grads.T - lam * grads_hat.T).reshape(d, d)
-
-    Sigma_hat = inv_hessian @ (n / N * var_unlabeled + var) @ inv_hessian
+    Sigma_hat = sandwich_cov_glm(
+        grads,
+        grads_hat,
+        grads_hat_unlabeled,
+        inv_hessian,
+        group,
+        group_unlabeled,
+        lam
+    )
 
     return _zconfint_generic(
         ppi_pointest,
@@ -1244,6 +1273,8 @@ def ppi_poisson_pointestimate(
     optimizer_options=None,
     w=None,
     w_unlabeled=None,
+    group=None,
+    group_unlabeled=None,
 ):
     """Computes the prediction-powered point estimate of the Poisson regression coefficients.
 
@@ -1350,6 +1381,9 @@ def ppi_poisson_pointestimate(
             grads_hat,
             grads_hat_unlabeled,
             inv_hessian,
+            group,
+            group_unlabeled,
+            coord,
             clip=True,
         )
         return ppi_poisson_pointestimate(
@@ -1456,6 +1490,8 @@ def ppi_poisson_ci(
     optimizer_options=None,
     w=None,
     w_unlabeled=None,
+    group=None,
+    group_unlabeled=None,
 ):
     """Computes the prediction-powered confidence interval for the Poisson regression coefficients using the PPI++ algorithm from `[ADZ23] <https://arxiv.org/abs/2311.01453>`__.
 
@@ -1520,6 +1556,9 @@ def ppi_poisson_ci(
             grads_hat,
             grads_hat_unlabeled,
             inv_hessian,
+            group,
+            group_unlabeled,
+            coord,
             clip=True,
         )
         return ppi_poisson_ci(
