@@ -2008,7 +2008,7 @@ def sandwich_cov_glm(
 
     var_unlabeled = cov_cluster(lam * grads_hat_unlabeled_cent, group_unlabeled) / N**2
     var = cov_cluster(grads_cent - lam * grads_hat_cent, group) / n**2
-    Sigma_hat = inv_hessian @ (n / N * var_unlabeled + var) @ inv_hessian
+    Sigma_hat = inv_hessian @ (var_unlabeled + var) @ inv_hessian
     return Sigma_hat
 
 

@@ -62,6 +62,178 @@ def test_ppi_ols_ci():
     failed = np.any((includeds / num_trials) < (1 - alphas - epsilon))
     assert not failed
 
+def simulate_clustered_data(
+    regression_coefficients,
+    cluster_size,
+    num_clusters_labeled,
+    num_clusters_unlabeled,
+    rho,
+    correlation,
+    bias=0,
+    seed=0,
+):
+    rng = np.random.default_rng(seed)
+
+    sigma = (1 - rho) * np.eye(cluster_size) + rho * np.ones(
+        (cluster_size, cluster_size)
+    )
+    
+    zeros = np.zeros(cluster_size)
+    # One multivariate Gaussian draw per cluster (dimension = cluster_size).
+    errors_clustered = rng.multivariate_normal(
+        zeros, cov=sigma, size=num_clusters_labeled
+    )
+    errors_unlabeled_clustered = rng.multivariate_normal(
+        zeros, cov=sigma, size=num_clusters_unlabeled
+    )
+
+    noise_sd = np.sqrt(1 - correlation**2)
+    errors_hat_clustered = correlation * errors_clustered + rng.normal(
+        loc=0.0, scale=noise_sd, size=errors_clustered.shape
+    )
+    errors_hat_unlabeled_clustered = (
+        correlation * errors_unlabeled_clustered
+        + rng.normal(loc=0.0, scale=noise_sd, size=errors_unlabeled_clustered.shape)
+    )
+
+    # Flatten to observation-level vectors.
+    errors = errors_clustered.reshape(-1)
+    errors_hat = errors_hat_clustered.reshape(-1)
+    errors_hat_unlabeled = errors_hat_unlabeled_clustered.reshape(-1)
+
+    # Distinct cluster labels with one label per flattened observation.
+    group = np.repeat(
+        np.arange(num_clusters_labeled), cluster_size
+    )
+    group_unlabeled = np.repeat(
+        np.arange(
+            num_clusters_labeled, num_clusters_labeled + num_clusters_unlabeled
+        ),
+        cluster_size,
+    )
+
+    d = len(regression_coefficients)
+    n = len(errors)
+    N = len(errors_hat_unlabeled)
+
+    X = rng.normal(size=(n, d))
+    X_unlabeled = rng.normal(size=(N, d))
+
+    Y = X.dot(regression_coefficients) + errors
+    Y_hat = X.dot(regression_coefficients+bias) + errors_hat 
+    Y_hat_unlabeled = X_unlabeled.dot(regression_coefficients+bias) + errors_hat_unlabeled
+
+    
+
+    return {
+        "X" : X,
+        "Y": Y,
+        "Y_hat": Y_hat,
+        "X_unlabeled": X_unlabeled,
+        "Y_hat_unlabeled": Y_hat_unlabeled,
+        "group": group,
+        "group_unlabeled": group_unlabeled,
+    }
+
+
+
+def test_ppi_ols_clustered_pointestimate():
+    seed = 0
+    regression_coefficients = np.array([1, 2])
+    rho = 0.3
+    correlation = 0.9
+    cluster_size = 10
+    num_clusters_labeled = 100
+    num_clusters_unlabeled = 1000
+    bias = 2
+
+    sim_data = simulate_clustered_data(
+        regression_coefficients=regression_coefficients,
+        cluster_size=cluster_size,
+        num_clusters_labeled=num_clusters_labeled,
+        num_clusters_unlabeled=num_clusters_unlabeled,
+        rho=rho,
+        correlation=correlation,
+        bias=bias,
+        seed=seed,
+    )
+    X = sim_data["X"]
+    Y = sim_data["Y"]
+    Y_hat = sim_data["Y_hat"]
+    X_unlabeled = sim_data["X_unlabeled"]
+    Y_hat_unlabeled = sim_data["Y_hat_unlabeled"]
+    group = sim_data["group"]
+    group_unlabeled = sim_data["group_unlabeled"]
+
+    point_estimate = ppi_ols_pointestimate(
+        X, 
+        Y, 
+        Y_hat, 
+        X_unlabeled, 
+        Y_hat_unlabeled,
+        group = group,
+        group_unlabeled = group_unlabeled,
+    )
+    print(point_estimate, regression_coefficients)
+    
+    assert np.allclose(point_estimate, regression_coefficients, atol=0.1)
+
+def test_ppi_ols_clustered_ci():
+    seed = 0
+    regression_coefficients = np.array([1, 2])
+    rho = 0.3
+    correlation = 0.9
+    cluster_size = 10
+    num_clusters_labeled = 100
+    num_clusters_unlabeled = 1000
+    bias = 2
+
+    alphas = np.array([0.05, 0.1, 0.2])
+    epsilon = 0.05
+    num_trials = 100
+    includeds = np.zeros((len(alphas), len(regression_coefficients)))
+    for i in range(num_trials):
+        sim_data = simulate_clustered_data(
+            regression_coefficients=regression_coefficients,
+            cluster_size=cluster_size,
+            num_clusters_labeled=num_clusters_labeled,
+            num_clusters_unlabeled=num_clusters_unlabeled,
+            rho=rho,
+            correlation=correlation,
+            bias=bias,
+            seed=seed+i,
+        )
+        X = sim_data["X"]
+        Y = sim_data["Y"]
+        Y_hat = sim_data["Y_hat"]
+        X_unlabeled = sim_data["X_unlabeled"]
+        Y_hat_unlabeled = sim_data["Y_hat_unlabeled"]
+        group = sim_data["group"]
+        group_unlabeled = sim_data["group_unlabeled"]
+
+        for j in range(alphas.shape[0]):
+            beta_ppi_ci = ppi_ols_ci(
+                X, 
+                Y, 
+                Y_hat, 
+                X_unlabeled, 
+                Y_hat_unlabeled, 
+                group=group,
+                group_unlabeled=group_unlabeled,
+                alpha=alphas[j],
+            )
+            includeds[j] += (
+                (beta_ppi_ci[0] <= regression_coefficients) & (regression_coefficients <= beta_ppi_ci[1])
+            ).astype(int)
+    
+
+    failed = (includeds / num_trials) < (1 - alphas[:,None] - epsilon)
+
+    assert not np.any(failed)
+
+
+
+
 
 """
     Baseline tests

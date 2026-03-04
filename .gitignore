@@ -170,3 +170,4 @@ cython_debug/
 #.idea/
 
 examples/osfstorage-archive (3)
+.vscode/settings.json
