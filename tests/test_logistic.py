@@ -104,7 +104,6 @@ def ppi_logistic_ci_subtest(i, alphas, n=1000, N=10000, d=1, epsilon=0.02):
     # Make a synthetic regression problem
     X = np.random.randn(n, d)
     beta = np.random.randn(d)
-    print(beta)
     beta_prediction = beta + np.random.randn(d) + 2
     Y = np.random.binomial(1, expit(X.dot(beta)))
     Yhat = expit(X.dot(beta_prediction))
@@ -121,7 +120,6 @@ def ppi_logistic_ci_subtest(i, alphas, n=1000, N=10000, d=1, epsilon=0.02):
             Yhat_unlabeled,
             optimizer_options={"gtol": 1e-3},
         )
-        print(beta_ppi_pointestimate)
         beta_ppi_ci = ppi_logistic_ci(
             X,
             Y,
@@ -131,17 +129,11 @@ def ppi_logistic_ci_subtest(i, alphas, n=1000, N=10000, d=1, epsilon=0.02):
             alpha=alphas[j],
             optimizer_options={"gtol": 1e-3},
         )
-        print(beta_ppi_ci[0])
-        print(beta_ppi_ci[1])
         # Check that the confidence interval contains the true beta
         includeds[j] += int(
             (beta_ppi_ci[0][0] <= beta[0]) & (beta[0] <= beta_ppi_ci[1][0])
         )
     return includeds
-
-alphas = np.array([0.05])
-i = 0
-ppi_logistic_ci_subtest(i, alphas, n=1000, N=10000, d=1, epsilon=0.02)
 
 
 def test_ppi_logistic_ci_parallel():

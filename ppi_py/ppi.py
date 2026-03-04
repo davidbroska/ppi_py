@@ -319,15 +319,37 @@ def ppi_mean_pval(
             coord=None,
             optim_mode=lam_optim_mode,
         )
-
-    return rectified_p_value(
-        rectifier=(w * Y - lam * w * Yhat).mean(0),
-        rectifier_std=(w * Y - lam * w * Yhat).std(0) / np.sqrt(n),
-        imputed_mean=(w_unlabeled * lam * Yhat_unlabeled).mean(0),
-        imputed_std=(w_unlabeled * lam * Yhat_unlabeled).std(0) / np.sqrt(N),
-        null=null,
-        alternative=alternative,
+    ppi_pointest = ppi_mean_pointestimate(
+        Y,
+        Yhat,
+        Yhat_unlabeled,
+        lam=lam,
+        coord=coord,
+        w=w,
+        w_unlabeled=w_unlabeled,
+        group=group,
+        group_unlabeled=group_unlabeled,
     )
+    grads = w * (Y - ppi_pointest)
+    grads_hat = w * (Yhat - ppi_pointest)
+    grads_hat_unlabeled = w_unlabeled * (Yhat_unlabeled - ppi_pointest)
+    inv_hessian = np.eye(d)
+    Sigma_hat = sandwich_cov_glm(
+        grads,
+        grads_hat,
+        grads_hat_unlabeled,
+        inv_hessian,
+        group,
+        group_unlabeled,
+        lam
+    )
+
+    return _zstat_generic(
+        ppi_pointest,
+        null,
+        np.sqrt(np.diag(Sigma_hat)),
+        alternative,
+    )[1]
 
 
 """
@@ -1127,15 +1149,19 @@ def ppi_logistic_pval(
             alternative=alternative,
         )
 
-    var_unlabeled = np.cov(lam * grads_hat_unlabeled.T).reshape(d, d)
-    var = np.cov(grads.T - lam * grads_hat.T).reshape(d, d)
-    Sigma_hat = inv_hessian @ (n / N * var_unlabeled + var) @ inv_hessian
-
-    var_diag = np.sqrt(np.diag(Sigma_hat) / n)
+    Sigma_hat = sandwich_cov_glm(
+        grads,
+        grads_hat,
+        grads_hat_unlabeled,
+        inv_hessian,
+        group,
+        group_unlabeled,
+        lam
+    )
 
     pvals = _zstat_generic2(
         ppi_pointest,
-        var_diag,
+        np.sqrt(np.diag(Sigma_hat)),
         alternative=alternative,
     )[1]
     return pvals
@@ -1256,7 +1282,7 @@ def ppi_logistic_ci(
 
     return _zconfint_generic(
         ppi_pointest,
-        np.sqrt(np.diag(Sigma_hat) / n),
+        np.sqrt(np.diag(Sigma_hat)),
         alpha=alpha,
         alternative=alternative,
     )
@@ -1576,13 +1602,19 @@ def ppi_poisson_ci(
             w_unlabeled=w_unlabeled,
         )
 
-    var_unlabeled = np.cov(lam * grads_hat_unlabeled.T).reshape(d, d)
-    var = np.cov(grads.T - lam * grads_hat.T).reshape(d, d)
-    Sigma_hat = inv_hessian @ (n / N * var_unlabeled + var) @ inv_hessian
+    Sigma_hat = sandwich_cov_glm(
+        grads,
+        grads_hat,
+        grads_hat_unlabeled,
+        inv_hessian,
+        group,
+        group_unlabeled,
+        lam
+    )
 
     return _zconfint_generic(
         ppi_pointest,
-        np.sqrt(np.diag(Sigma_hat) / n),
+        np.sqrt(np.diag(Sigma_hat)),
         alpha=alpha,
         alternative=alternative,
     )
