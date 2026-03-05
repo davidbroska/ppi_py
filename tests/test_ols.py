@@ -1,5 +1,6 @@
 import numpy as np
-from ppi_py import *
+from ppi_py import ppi_ols_pointestimate, ppi_ols_ci
+from ppi_py import classical_ols_ci, postprediction_ols_ci
 from tqdm import tqdm
 import pdb
 

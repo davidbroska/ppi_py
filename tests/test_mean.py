@@ -1,5 +1,6 @@
 import numpy as np
-from ppi_py import *
+from ppi_py import ppi_mean_pointestimate, ppi_mean_ci, ppi_mean_pval
+from ppi_py import classical_mean_ci, semisupervised_mean_ci, conformal_mean_ci
 
 """
     PPI tests
@@ -32,6 +33,8 @@ def test_ppi_mean_ci():
 
 
 def test_ppi_mean_multid():
+    seed = 0
+    np.random.seed(seed)
     trials = 100
     alphas = np.array([0.5, 0.2, 0.1, 0.05, 0.01])
     n_alphas = alphas.shape[0]
@@ -47,9 +50,12 @@ def test_ppi_mean_multid():
 
             included = (ci[0] <= 0) & (ci[1] >= 0)
             includeds[j] += included.astype(int)
-    failed = (includeds / trials) < 1 - alphas[:,None] - epsilon
+    print(includeds / trials)
+    miscoverage = (1 - alphas[:,None]) - (includeds / trials) 
+    print(miscoverage)
+    failed = miscoverage > epsilon
+    print(failed)
     assert not np.any(failed)
-
 
 def test_ppi_mean_elem():
     alpha = 0.1
