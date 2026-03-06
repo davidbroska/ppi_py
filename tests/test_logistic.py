@@ -1,6 +1,10 @@
 import numpy as np
 from scipy.special import expit
-from ppi_py import ppi_logistic_pointestimate, ppi_logistic_ci, ppi_logistic_pval
+from ppi_py import (
+    ppi_logistic_pointestimate,
+    ppi_logistic_ci,
+    ppi_logistic_pval,
+)
 from ppi_py import classical_logistic_ci
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -142,7 +146,7 @@ def test_ppi_logistic_ci_parallel():
     N = 10000
     d = 2
     alphas = np.array([0.05, 0.1, 0.2])
-    epsilon = 0.4
+    epsilon = 0.1
     num_trials = 10
 
     total_includeds = np.zeros(len(alphas))
@@ -163,37 +167,23 @@ def test_ppi_logistic_ci_parallel():
     assert not failed
 
 
-
 """
     Cluster tests
 """
-#TODO: The current simulation is incorrect since the coefficients are being attunated towards zero by the random effects.
+
+
 def simulate_clustered_data(
     regression_coefficients,
     cluster_size,
     num_clusters_labeled,
     num_clusters_unlabeled,
-    random_effect_var,
     Yhat_accuracy,
     seed=0,
 ):
     rng = np.random.default_rng(seed)
-    
-    random_effects_labeled = np.repeat(
-        rng.normal(loc=0.0, scale=np.sqrt(random_effect_var), size=num_clusters_labeled),
-        cluster_size,
-    )
-    random_effects_unlabeled = np.repeat(
-        rng.normal(loc=0.0, scale=np.sqrt(random_effect_var), size=num_clusters_unlabeled),
-        cluster_size,
-    )
-
-
 
     # Distinct cluster labels with one label per flattened observation.
-    group = np.repeat(
-        np.arange(num_clusters_labeled), cluster_size
-    )
+    group = np.repeat(np.arange(num_clusters_labeled), cluster_size)
     group_unlabeled = np.repeat(
         np.arange(
             num_clusters_labeled, num_clusters_labeled + num_clusters_unlabeled
@@ -211,17 +201,20 @@ def simulate_clustered_data(
     eta = X.dot(regression_coefficients)
     eta_unlabeled = X_unlabeled.dot(regression_coefficients)
 
-    Y = np.random.binomial(1, expit(eta + random_effects_labeled))
-    Y_noise = np.random.binomial(1, p=Yhat_accuracy, size=Y.shape)
+    Y = np.random.binomial(1, expit(eta))
+    Y_noise_cluster = np.random.binomial(
+        1, p=Yhat_accuracy, size=num_clusters_labeled+num_clusters_unlabeled
+    )
+    Y_noise = Y_noise_cluster[group]
     Y_hat = Y * Y_noise + (1 - Y) * (1 - Y_noise)
-    Y_unlabeled = np.random.binomial(1, expit(eta_unlabeled + random_effects_unlabeled))
-    Y_unlabeled_noise = np.random.binomial(1, p=Yhat_accuracy, size=Y_unlabeled.shape)
-    Y_hat_unlabeled = Y_unlabeled * Y_unlabeled_noise + (1 - Y_unlabeled) * (1 - Y_unlabeled_noise)
-
-    
+    Y_unlabeled = np.random.binomial(1, expit(eta_unlabeled))
+    Y_unlabeled_noise = Y_noise_cluster[group_unlabeled]
+    Y_hat_unlabeled = Y_unlabeled * Y_unlabeled_noise + (1 - Y_unlabeled) * (
+        1 - Y_unlabeled_noise
+    )
 
     return {
-        "X" : X,
+        "X": X,
         "Y": Y,
         "Y_hat": Y_hat,
         "X_unlabeled": X_unlabeled,
@@ -230,20 +223,19 @@ def simulate_clustered_data(
         "group_unlabeled": group_unlabeled,
     }
 
+
 def test_ppi_logistic_clustered_pointestimate():
     seed = 0
     regression_coefficients = np.array([1, 2])
     cluster_size = 5
-    num_clusters_labeled = 2000
-    num_clusters_unlabeled = 4000
-    random_effect_var = 0.1
-    Yhat_accuracy = 0.9
+    num_clusters_labeled = 1000
+    num_clusters_unlabeled = 2000
+    Yhat_accuracy = 0.8
     data = simulate_clustered_data(
         regression_coefficients=regression_coefficients,
         cluster_size=cluster_size,
         num_clusters_labeled=num_clusters_labeled,
         num_clusters_unlabeled=num_clusters_unlabeled,
-        random_effect_var=random_effect_var,
         Yhat_accuracy=Yhat_accuracy,
         seed=seed,
     )
@@ -264,32 +256,29 @@ def test_ppi_logistic_clustered_pointestimate():
         group_unlabeled=group_unlabeled,
         optimizer_options={"gtol": 1e-3},
     )
-    
+
     print(point_estimate, regression_coefficients)
-    
+
     assert np.allclose(point_estimate, regression_coefficients, atol=0.1)
 
 
-
 def ppi_logistic_clustered_ci_subtest(
-        i,
-        alphas,
-        regression_coefficients,
-        cluster_size,
-        num_clusters_labeled,
-        num_clusters_unlabeled,
-        random_effect_var,
-        Yhat_accuracy,
-        seed=0,
-    ):
+    i,
+    alphas,
+    regression_coefficients,
+    cluster_size,
+    num_clusters_labeled,
+    num_clusters_unlabeled,
+    Yhat_accuracy,
+    seed=0,
+):
     data = simulate_clustered_data(
         regression_coefficients=regression_coefficients,
         cluster_size=cluster_size,
         num_clusters_labeled=num_clusters_labeled,
         num_clusters_unlabeled=num_clusters_unlabeled,
-        random_effect_var=random_effect_var,
         Yhat_accuracy=Yhat_accuracy,
-        seed=seed+i,
+        seed=seed + i,
     )
     X = data["X"]
     Y = data["Y"]
@@ -311,22 +300,20 @@ def ppi_logistic_clustered_ci_subtest(
             alpha=alphas[j],
             optimizer_options={"gtol": 1e-3},
         )
-        print(ci, regression_coefficients)
-        includeds[j] = ((ci[0] <= regression_coefficients) & (regression_coefficients <= ci[1])).astype(int)
-        print(includeds[j])
+        includeds[j] = (
+            (ci[0] <= regression_coefficients)
+            & (regression_coefficients <= ci[1])
+        ).astype(int)
     return includeds
-
-
 
 
 def test_ppi_logistic_clustered_ci_parallel():
     seed = 0
     regression_coefficients = np.array([1, 2])
     cluster_size = 5
-    num_clusters_labeled = 10000
-    num_clusters_unlabeled = 10000
-    random_effect_var = 0.1
-    Yhat_accuracy = 0.9
+    num_clusters_labeled = 1000
+    num_clusters_unlabeled = 2000
+    Yhat_accuracy = 0.8
     alphas = np.array([0.05, 0.1, 0.2, 0.5])
     epsilon = 0.1
     num_trials = 100
@@ -336,7 +323,15 @@ def test_ppi_logistic_clustered_ci_parallel():
     with ProcessPoolExecutor() as executor:
         futures = [
             executor.submit(
-                ppi_logistic_clustered_ci_subtest, i, alphas, regression_coefficients, cluster_size, num_clusters_labeled, num_clusters_unlabeled, random_effect_var, Yhat_accuracy, seed
+                ppi_logistic_clustered_ci_subtest,
+                i,
+                alphas,
+                regression_coefficients,
+                cluster_size,
+                num_clusters_labeled,
+                num_clusters_unlabeled,
+                Yhat_accuracy,
+                seed,
             )
             for i in range(num_trials)
         ]
@@ -345,10 +340,9 @@ def test_ppi_logistic_clustered_ci_parallel():
             total_includeds += future.result()
 
     print((total_includeds / num_trials))
-    failed = (total_includeds / num_trials) < (1 - alphas[:,None] - epsilon)
+    failed = (total_includeds / num_trials) < (1 - alphas[:, None] - epsilon)
     print(failed)
     assert not np.any(failed)
-
 
 
 """
