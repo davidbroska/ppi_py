@@ -56,7 +56,7 @@ def parse_args() -> argparse.Namespace:
         / "Data"
         / "3_gpt4turbo_wp_20241118.csv.gz"
     )
-    default_output = repo_root / "examples" / "moralmachine_reduced.npz"
+    default_output = repo_root / "examples" / "data" / "moralmachine.npz"
 
     parser = argparse.ArgumentParser(
         description="Prepare a reduced Moral Machine dataset for AMCE examples."
@@ -86,6 +86,7 @@ def main() -> None:
     # Keep these columns in memory to compute theoretical weights.
     required_cols = [
         "UserID",
+        "ResponseID",
         "Intervention",
         "Barrier",
         "CrossingSignal",
@@ -106,6 +107,7 @@ def main() -> None:
 
     out_cols = [
         "UserID",
+        "ResponseID",
         "weights",
         "Intervention",
         "Saved",
@@ -117,6 +119,7 @@ def main() -> None:
     np.savez_compressed(
         args.output,
         UserID=np.asarray(out["UserID"].astype(str), dtype=np.str_),
+        ResponseID=np.asarray(out["ResponseID"].astype(str), dtype=np.str_),
         weights=out["weights"].to_numpy(),
         Intervention=out["Intervention"].to_numpy(),
         Saved=out["Saved"].to_numpy(),
