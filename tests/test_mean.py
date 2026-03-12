@@ -51,11 +51,12 @@ def test_ppi_mean_multid():
             included = (ci[0] <= 0) & (ci[1] >= 0)
             includeds[j] += included.astype(int)
     print(includeds / trials)
-    miscoverage = (1 - alphas[:,None]) - (includeds / trials) 
+    miscoverage = (1 - alphas[:, None]) - (includeds / trials)
     print(miscoverage)
     failed = miscoverage > epsilon
     print(failed)
     assert not np.any(failed)
+
 
 def test_ppi_mean_elem():
     alpha = 0.1
@@ -64,9 +65,7 @@ def test_ppi_mean_elem():
     Yhat_unlabeled = np.random.normal(-2, 1, 10000)
 
     ppi_mean_pointestimate(Y, Yhat, Yhat_unlabeled, lam_optim_mode="element")
-    ppi_mean_ci(
-        Y, Yhat, Yhat_unlabeled, alpha=alpha, lam_optim_mode="element"
-    )
+    ppi_mean_ci(Y, Yhat, Yhat_unlabeled, alpha=alpha, lam_optim_mode="element")
     ppi_mean_pval(Y, Yhat, Yhat_unlabeled, lam_optim_mode="element")
 
     Y = np.random.normal(0, 1, (10000, 5))
@@ -74,9 +73,7 @@ def test_ppi_mean_elem():
     Yhat_unlabeled = np.random.normal(-2, 1, (10000, 5))
 
     ppi_mean_pointestimate(Y, Yhat, Yhat_unlabeled, lam_optim_mode="element")
-    ppi_mean_ci(
-        Y, Yhat, Yhat_unlabeled, alpha=alpha, lam_optim_mode="element"
-    )
+    ppi_mean_ci(Y, Yhat, Yhat_unlabeled, alpha=alpha, lam_optim_mode="element")
     ppi_mean_pval(Y, Yhat, Yhat_unlabeled, lam_optim_mode="element")
 
 
@@ -165,6 +162,7 @@ def test_conformal_mean_ci():
     failed = np.any(includeds / trials < 1 - alphas - epsilon)
     assert not failed
 
+
 def simulate_clustered_data(
     theta,
     cluster_size,
@@ -196,7 +194,9 @@ def simulate_clustered_data(
     )
     Y_hat_unlabeled_clustered = (
         correlation * Y_unlabeled_clustered
-        + rng.normal(loc=bias, scale=noise_sd, size=Y_unlabeled_clustered.shape)
+        + rng.normal(
+            loc=bias, scale=noise_sd, size=Y_unlabeled_clustered.shape
+        )
     )
 
     # Flatten to observation-level vectors.
@@ -205,9 +205,7 @@ def simulate_clustered_data(
     Y_hat_unlabeled = Y_hat_unlabeled_clustered.reshape(-1)
 
     # Distinct cluster labels with one label per flattened observation.
-    group = np.repeat(
-        np.arange(num_clusters_labeled), cluster_size
-    )
+    group = np.repeat(np.arange(num_clusters_labeled), cluster_size)
     group_unlabeled = np.repeat(
         np.arange(
             num_clusters_labeled, num_clusters_labeled + num_clusters_unlabeled
@@ -251,15 +249,65 @@ def test_ppi_mean_clustered_pointestimate():
     group_unlabeled = sim_data["group_unlabeled"]
 
     theta_hat = ppi_mean_pointestimate(
-        Y, 
-        Y_hat, 
-        Y_hat_unlabeled, 
-        group = group, 
-        group_unlabeled = group_unlabeled
+        Y, Y_hat, Y_hat_unlabeled, group=group, group_unlabeled=group_unlabeled
     )
     print(theta_hat)
     assert np.isclose(theta_hat, theta, atol=0.1)
-    
+
+
+def test_ppi_mean_clustered_pointestimate_multid():
+    seed = 0
+    theta = np.array([0, 1])
+    rho = np.array([0.3, 0.5])
+    correlation = np.array([0.1, 0.9])
+    cluster_size = 10
+    num_clusters_labeled = 100
+    num_clusters_unlabeled = 1000
+    bias = np.array([1, 2])
+
+    sim_data0 = simulate_clustered_data(
+        theta=theta[0],
+        cluster_size=cluster_size,
+        num_clusters_labeled=num_clusters_labeled,
+        num_clusters_unlabeled=num_clusters_unlabeled,
+        rho=rho[0],
+        correlation=correlation[0],
+        bias=bias[0],
+        seed=seed + 0,
+    )
+
+    sim_data1 = simulate_clustered_data(
+        theta=theta[1],
+        cluster_size=cluster_size,
+        num_clusters_labeled=num_clusters_labeled,
+        num_clusters_unlabeled=num_clusters_unlabeled,
+        rho=rho[1],
+        correlation=correlation[1],
+        bias=bias[1],
+        seed=seed + 1,
+    )
+
+    Y = np.stack((sim_data0["Y"], sim_data1["Y"])).T
+    Y_hat = np.stack((
+        sim_data0["Y_hat"], sim_data1["Y_hat"]
+        )).T
+    Y_hat_unlabeled = np.stack((
+        sim_data0["Y_hat_unlabeled"], sim_data1["Y_hat_unlabeled"]
+        )).T
+    group = sim_data0["group"]
+    group_unlabeled = sim_data0["group_unlabeled"]
+    theta_hat = ppi_mean_pointestimate(
+        Y, 
+        Y_hat, 
+        Y_hat_unlabeled, 
+        group=group, 
+        group_unlabeled=group_unlabeled,
+        lam_optim_mode = 'element'
+    )
+    print(theta_hat)
+    assert np.all(np.isclose(theta_hat, theta, atol=0.1))
+
+
 
 def test_ppi_mean_clustered_ci():
     seed = 0
@@ -293,16 +341,17 @@ def test_ppi_mean_clustered_ci():
         group_unlabeled = sim_data["group_unlabeled"]
 
         ci = ppi_mean_ci(
-            Y, 
-            Y_hat, 
-            Y_hat_unlabeled, 
-            alpha=alphas, 
-            group=group, 
-            group_unlabeled=group_unlabeled
+            Y,
+            Y_hat,
+            Y_hat_unlabeled,
+            alpha=alphas,
+            group=group,
+            group_unlabeled=group_unlabeled,
         )
         includeds += ((ci[0] <= theta) & (ci[1] >= theta)).astype(int)
     failed = np.any(includeds / ntrials < 1 - alphas - epsilon)
     assert not failed
+
 
 def test_ppi_mean_clustered_pval():
     seed = 0
@@ -336,12 +385,12 @@ def test_ppi_mean_clustered_pval():
         group_unlabeled = sim_data["group_unlabeled"]
 
         pval = ppi_mean_pval(
-            Y, 
-            Y_hat, 
-            Y_hat_unlabeled, 
-            null=theta, 
-            group=group, 
-            group_unlabeled=group_unlabeled
+            Y,
+            Y_hat,
+            Y_hat_unlabeled,
+            null=theta,
+            group=group,
+            group_unlabeled=group_unlabeled,
         )
         rejected += (pval < alphas).astype(int)
     print(rejected / ntrials)
