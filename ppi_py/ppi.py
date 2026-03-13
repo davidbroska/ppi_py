@@ -165,6 +165,8 @@ def ppi_mean_ci(
         coord (int, optional): Coordinate for which to optimize `lam`. If `None`, it optimizes the total variance over all coordinates. Must be in {1, ..., d} where d is the shape of the estimand.
         w (ndarray, optional): Sample weights for the labeled data set.
         w_unlabeled (ndarray, optional): Sample weights for the unlabeled data set.
+        group (ndarray, optional): Cluster ids for the labeled data set.
+        group_unlabeled (ndarray, optional): Cluster ids for the unlabeled data set.
 
     Returns:
         tuple: Lower and upper bounds of the prediction-powered confidence interval for the mean.
@@ -281,8 +283,9 @@ def ppi_mean_pval(
         coord (int, optional): Coordinate for which to optimize `lam`. If `None`, it optimizes the total variance over all coordinates. Must be in {1, ..., d} where d is the shape of the estimand.
         w (ndarray, optional): Sample weights for the labeled data set.
         w_unlabeled (ndarray, optional): Sample weights for the unlabeled data set.
-        group: #TODO
-        group_unlabeled: #TODO
+        group (ndarray, optional): Cluster ids for the labeled data set.
+        group_unlabeled (ndarray, optional): Cluster ids for the unlabeled data set. 
+
 
     Returns:
         float or ndarray: Prediction-powered p-value for the mean.
@@ -630,6 +633,8 @@ def ppi_ols_pointestimate(
         coord (int, optional): Coordinate for which to optimize `lam`. If `None`, it optimizes the total variance over all coordinates. Must be in {1, ..., d} where d is the shape of the estimand.
         w (ndarray, optional): Sample weights for the labeled data set.
         w_unlabeled (ndarray, optional): Sample weights for the unlabeled data set.
+        group (ndarray, optional): Cluster ids for the labeled data set.
+        group_unlabeled (ndarray, optional): Cluster ids for the unlabeled data set.
 
     Returns:
         ndarray: Prediction-powered point estimate of the OLS coefficients.
@@ -726,8 +731,8 @@ def ppi_ols_ci(
         coord (int, optional): Coordinate for which to optimize `lam`. If `None`, it optimizes the total variance over all coordinates. Must be in {1, ..., d} where d is the shape of the estimand.
         w (ndarray, optional): Sample weights for the labeled data set.
         w_unlabeled (ndarray, optional): Sample weights for the unlabeled data set.
-        group: #TODO
-        group_unlabeled: #TODO
+        group (ndarray, optional): Cluster ids for the labeled data set.
+        group_unlabeled (ndarray, optional): Cluster ids for the unlabeled data set. 
 
     Returns:
         tuple: Lower and upper bounds of the prediction-powered confidence interval for the OLS coefficients.
@@ -849,6 +854,8 @@ def ppi_logistic_pointestimate(
         optimizer_options (dict, optional): Options to pass to the optimizer. See scipy.optimize.minimize for details.
         w (ndarray, optional): Sample weights for the labeled data set.
         w_unlabeled (ndarray, optional): Sample weights for the unlabeled data set.
+        group (ndarray, optional): Cluster ids for the labeled data set.
+        group_unlabeled (ndarray, optional): Cluster ids for the unlabeled data set. 
 
     Returns:
         ndarray: Prediction-powered point estimate of the logistic regression coefficients.
@@ -1076,6 +1083,8 @@ def ppi_logistic_pval(
         optimizer_options (dict, optional): Options to pass to the optimizer. See scipy.optimize.minimize for details.
         w (ndarray, optional): Sample weights for the labeled data set.
         w_unlabeled (ndarray, optional): Sample weights for the unlabeled data set.
+        group (ndarray, optional): Cluster ids for the labeled data set.
+        group_unlabeled (ndarray, optional): Cluster ids for the unlabeled data set.
         alternative (str, optional): Alternative hypothesis, either 'two-sided', 'larger' or 'smaller'.
 
     Returns:
@@ -1198,6 +1207,8 @@ def ppi_logistic_ci(
         optimizer_options (dict, ooptional): Options to pass to the optimizer. See scipy.optimize.minimize for details.
         w (ndarray, optional): Weights for the labeled data. If None, it is set to 1.
         w_unlabeled (ndarray, optional): Weights for the unlabeled data. If None, it is set to 1.
+        group (ndarray, optional): Cluster ids for the labeled data set.
+        group_unlabeled (ndarray, optional): Cluster ids for the unlabeled data set.
 
     Returns:
         tuple: Lower and upper bounds of the prediction-powered confidence interval for the logistic regression coefficients.
@@ -1315,6 +1326,8 @@ def ppi_poisson_pointestimate(
         optimizer_options (dict, optional): Options to pass to the optimizer. See scipy.optimize.minimize for details.
         w (ndarray, optional): Sample weights for the labeled data set.
         w_unlabeled (ndarray, optional): Sample weights for the unlabeled data set.
+        group (ndarray, optional): Cluster ids for the labeled data set.
+        group_unlabeled (ndarray, optional): Cluster ids for the unlabeled data set.
 
     Returns:
         ndarray: Prediction-powered point estimate of the Poisson regression coefficients.
@@ -1534,6 +1547,8 @@ def ppi_poisson_ci(
         optimizer_options (dict, ooptional): Options to pass to the optimizer. See scipy.optimize.minimize for details.
         w (ndarray, optional): Weights for the labeled data. If None, it is set to 1.
         w_unlabeled (ndarray, optional): Weights for the unlabeled data. If None, it is set to 1.
+        group (ndarray, optional): Cluster ids for the labeled data set.
+        group_unlabeled (ndarray, optional): Cluster ids for the unlabeled data set.
 
     Returns:
         tuple: Lower and upper bounds of the prediction-powered confidence interval for the Poisson regression coefficients.
@@ -1894,9 +1909,9 @@ def _calc_lam_glm(
         grads_hat (ndarray): Gradient of the loss function with respect to the model parameter evaluated using predictions on the labeled data.
         grads_hat_unlabeled (ndarray): Gradient of the loss function with respect to the parameter evaluated using predictions on the unlabeled data.
         inv_hessian (ndarray): Inverse of the Hessian of the loss function with respect to the parameter.
+        group (ndarray): Cluster ids for the labeled data set.
+        group_unlabeled (ndarray): Cluster ids for the unlabeled data set. 
         coord (int, optional): Coordinate for which to optimize `lam`, when `optim_mode="overall"`.
-        group: #TODO
-        group_unlabeled: #TODO
         If `None`, it optimizes the total variance over all coordinates. Must be in {1, ..., d} where d is the shape of the estimand.
         clip (bool, optional): Whether to clip the value of lam to be non-negative. Defaults to `False`.
         optim_mode (ndarray, optional): Mode for which to optimize `lam`, either `overall` or `element`.
@@ -2053,8 +2068,8 @@ def sandwich_cov_glm(
         grads_hat (ndarray): Gradient of the loss function with respect to the model parameter evaluated using predictions on the labeled data.
         grads_hat_unlabeled (ndarray): Gradient of the loss function with respect to the parameter evaluated using predictions on the unlabeled data.
         inv_hessian (ndarray): Inverse of the Hessian of the loss function with respect to the parameter.
-        group: #TODO
-        group_unlabeled: #TODO
+        group (ndarray): Cluster ids for the labeled data set.
+        group_unlabeled (ndarray): Cluster ids for the unlabeled data set. 
         lam (float): Power-tuning parameter.
         
     Returns:

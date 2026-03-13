@@ -160,9 +160,21 @@ def linfty_binom(N, K, alpha, qhat):
     return epsilon
 
 def cov_cluster(x, group):
+    """Computes a cluster covariance estimate.
+
+    Computes sum[x[i]@x[j].T*(group[i]==group[j])] if group is not None.
+    Otherwise computes sum[x[i]@x[i].T]
+
+    Args:
+        x (ndarray): Observations, shape (n, d).
+        group (ndarray or None): Cluster ids, shape (n,)
+    
+    Returns:
+        cov: Covariance estimate, shape (d,d).
+    """
     if group is None:
         return np.dot(x.T, x)
     else:
-        x_group_sum = group_sums(x, group).T
-    return np.dot(x_group_sum.T, x_group_sum)
+        x_group_sum = group_sums(x, group)
+    return np.dot(x_group_sum, x_group_sum.T)
     
